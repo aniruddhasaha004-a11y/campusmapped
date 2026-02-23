@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>KIIT Smart Route Finder - Ultimate</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#00c853">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- PWA Support -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <style>
+    body { margin:0; font-family: Arial; background:#f4f6f9; }
+
+    .controls {
+      background:#1e1e1e;
+      color:white;
+      padding:10px;
+      text-align:center;
+    }
+
+    select, button {
+      padding:8px;
+      margin:5px;
+      border-radius:6px;
+      border:none;
+    }
+
+    button {
+      background:#00c853;
+      color:white;
+      cursor:pointer;
+      font-weight:bold;
+    }
+
+    #map { height:55vh; }
+
+    #result {
+      padding:10px;
+      font-weight:bold;
+      text-align:center;
+    }
+
+    #steps {
+      max-height:200px;
+      overflow-y:auto;
+      background:white;
+      padding:10px;
+    }
+
+    #steps p {
+      background:#f1f1f1;
+      padding:6px;
+      border-radius:5px;
+      margin:5px 0;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="controls">
+  <h2>KIIT Smart Route Finder</h2>
+
+  <select id="campus1">
+    <option>Campus 1</option>
+    <option>Campus 2</option>
+    <option>Campus 3</option>
+    <option>Campus 4</option>
+    <option>Campus 5</option>
+    <option>Campus 6</option>
+    <option>Campus 7</option>
+    <option>Campus 12</option>
+    <option>Campus 15</option>
+    <option>Campus 25</option>
+  </select>
+
+  <select id="campus2">
+    <option>Campus 1</option>
+    <option>Campus 2</option>
+    <option>Campus 3</option>
+    <option>Campus 4</option>
+    <option>Campus 5</option>
+    <option>Campus 6</option>
+    <option>Campus 7</option>
+    <option>Campus 12</option>
+    <option>Campus 15</option>
+    <option>Campus 25</option>
+  </select>
+
+  <select id="mode">
+    <option value="car">🚗 Car</option>
+    <option value="bike">🏍 Bike</option>
+    <option value="walk">🚶 Walk</option>
+  </select>
+
+  <button onclick="findRoute()">Find Route</button>
+  <button onclick="reverseRoute()">🔄 Reverse</button>
+  <button onclick="toggleMap()">🌙 Dark Map</button>
+  <button onclick="startGPS()">🛰 GPS</button>
+</div>
+
+<div id="result"></div>
+<div id="map"></div>
+<div id="steps"></div>
+
+<script>
+
+const map = L.map('map').setView([20.3530, 85.8190], 15);
+
+let lightTile = L.tileLayer(
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+);
+
+let darkTile = L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+);
+
+lightTile.addTo(map);
+
+let darkMode = false;
+
+let routeLine, startMarker, endMarker, movingMarker, gpsMarker;
+
+async function findRoute() {
+
+  const campus1 = document.getElementById("campus1").value;
+  const campus2 = document.getElementById("campus2").value;
+  const mode = document.getElementById("mode").value;
+
+  const res = await fetch("/route", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ campus1, campus2, mode })
+  });
+
+  const data = await res.json();
+
+  document.getElementById("result").innerText =
+    `Distance: ${data.distance} KM | Time: ${data.duration} min`;
+
+  const stepsDiv = document.getElementById("steps");
+  stepsDiv.innerHTML = "";
+
+  if (data.steps) {
+    data.steps.forEach(step => {
+      stepsDiv.innerHTML += `<p>➡ ${step.instruction}</p>`;
+    });
+  }
+
+  if (routeLine) map.removeLayer(routeLine);
+  if (startMarker) map.removeLayer(startMarker);
+  if (endMarker) map.removeLayer(endMarker);
+  if (movingMarker) map.removeLayer(movingMarker);
+
+  const decoded = decodePolyline(data.geometry);
+
+  const startIcon = L.icon({
+    iconUrl:"https://maps.google.com/mapfiles/ms/icons/green-dot.png",
+    iconSize:[32,32]
+  });
+
+  const endIcon = L.icon({
+    iconUrl:"https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+    iconSize:[32,32]
+  });
+
+  startMarker = L.marker(decoded[0], { icon:startIcon }).addTo(map);
+  endMarker = L.marker(decoded[decoded.length-1], { icon:endIcon }).addTo(map);
+
+  routeLine = L.polyline(decoded, { color:"blue", weight:5 }).addTo(map);
+
+  let vehicleIcon;
+
+  if(mode === "car"){
+    vehicleIcon = L.icon({
+      iconUrl:"https://cdn-icons-png.flaticon.com/512/743/743922.png",
+      iconSize:[30,30]
+    });
+  } else if(mode === "bike"){
+    vehicleIcon = L.icon({
+      iconUrl:"https://cdn-icons-png.flaticon.com/512/2972/2972185.png",
+      iconSize:[30,30]
+    });
+  } else {
+    vehicleIcon = L.icon({
+      iconUrl:"https://cdn-icons-png.flaticon.com/512/684/684908.png",
+      iconSize:[25,25]
+    });
+  }
+
+  movingMarker = L.marker(decoded[0], { icon:vehicleIcon }).addTo(map);
+
+  let i=0;
+  function animate(){
+    if(i < decoded.length){
+      movingMarker.setLatLng(decoded[i]);
+      i++;
+      setTimeout(animate,35);
+    }
+  }
+  animate();
+
+  map.fitBounds(routeLine.getBounds());
+}
+
+function reverseRoute(){
+  const c1=document.getElementById("campus1");
+  const c2=document.getElementById("campus2");
+  const temp=c1.value;
+  c1.value=c2.value;
+  c2.value=temp;
+  findRoute();
+}
+
+function toggleMap(){
+  if(!darkMode){
+    map.removeLayer(lightTile);
+    darkTile.addTo(map);
+  } else {
+    map.removeLayer(darkTile);
+    lightTile.addTo(map);
+  }
+  darkMode=!darkMode;
+}
+
+function startGPS(){
+  if(navigator.geolocation){
+    navigator.geolocation.watchPosition(pos=>{
+      const lat=pos.coords.latitude;
+      const lon=pos.coords.longitude;
+
+      if(gpsMarker) map.removeLayer(gpsMarker);
+
+      gpsMarker=L.marker([lat,lon]).addTo(map)
+        .bindPopup("You are here").openPopup();
+
+      map.setView([lat,lon],16);
+    });
+  } else {
+    alert("GPS not supported");
+  }
+}
+
+function decodePolyline(str){
+  let index=0, lat=0, lng=0, coordinates=[];
+  while(index<str.length){
+    let b, shift=0, result=0;
+    do{
+      b=str.charCodeAt(index++)-63;
+      result|=(b&0x1f)<<shift;
+      shift+=5;
+    }while(b>=0x20);
+    let dlat=((result&1)?~(result>>1):(result>>1));
+    lat+=dlat;
+    shift=0; result=0;
+    do{
+      b=str.charCodeAt(index++)-63;
+      result|=(b&0x1f)<<shift;
+      shift+=5;
+    }while(b>=0x20);
+    let dlng=((result&1)?~(result>>1):(result>>1));
+    lng+=dlng;
+    coordinates.push([lat/1E5,lng/1E5]);
+  }
+  return coordinates;
+}
+
+/* Service Worker */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js");
+  });
+}
+
+</script>
+
+</body>
+</html>
