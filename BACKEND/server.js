@@ -12,11 +12,7 @@ app.use(express.static("public"));
 /* ===============================
    🔑 API KEY
 ================================ */
-const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjdjY2YwMzMzZDJhNTQyOTZiMWFjYzU5MjBiYjVkZDMzIiwiaCI6Im11cm11cjY0In0=";
-
-/* ===============================
-   📍 CAMPUS COORDINATES
-================================ */
+const API_KEY = process.env.OPENROUTER_API_KEY;
 const campuses = {
   "Campus 1": { lat: 20.346680, lon: 85.823436 },
   "Campus 2": { lat: 20.353326, lon: 85.819614 },
