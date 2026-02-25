@@ -3,7 +3,7 @@ import cors from "cors";
 import axios from "axios";
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
@@ -12,7 +12,12 @@ app.use(express.static("public"));
 /* ===============================
    🔑 API KEY
 ================================ */
-const API_KEY = process.env.OPENROUTER_API_KEY;
+const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjdjY2YwMzMzZDJhNTQyOTZiMWFjYzU5MjBiYjVkZDMzIiwiaCI6Im11cm11cjY0In0=";
+
+/* ===============================
+   📍 CAMPUS COORDINATES
+================================ */
+
 const campuses = {
   "Campus 1": { lat: 20.346680, lon: 85.823436 },
   "Campus 2": { lat: 20.353326, lon: 85.819614 },
@@ -29,6 +34,7 @@ const campuses = {
 /* ===============================
    🚀 ROUTE API
 ================================ */
+
 app.post("/route", async (req, res) => {
   const { campus1, campus2, mode } = req.body;
 
@@ -65,11 +71,12 @@ app.post("/route", async (req, res) => {
     );
 
     const route = response.data.routes[0];
+    const summary = route.summary;
     const segment = route.segments[0];
 
     res.json({
-      distance: (route.summary.distance / 1000).toFixed(2),   // KM
-      duration: (route.summary.duration / 60).toFixed(1),    // Minutes
+      distance: (summary.distance / 1000).toFixed(2),
+      duration: (summary.duration / 60).toFixed(1),
       geometry: route.geometry,
       steps: segment.steps.map(step => ({
         instruction: step.instruction,
@@ -80,10 +87,14 @@ app.post("/route", async (req, res) => {
 
   } catch (error) {
     console.error("Route API Error:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to fetch route from OpenRouteService" });
+    res.status(500).json({ error: "Failed to fetch route" });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== "production") {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+}
+
+export default app;
