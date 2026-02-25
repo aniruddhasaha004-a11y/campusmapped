@@ -1,6 +1,12 @@
 import express from "express";
 import cors from "cors";
 import axios from "axios";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// Get __dirname in ES module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -89,6 +95,13 @@ app.post("/route", async (req, res) => {
     console.error("Route API Error:", error.response?.data || error.message);
     res.status(500).json({ error: "Failed to fetch route" });
   }
+});
+
+/* ===============================
+   🏠 SERVE FRONTEND (VERCEL FIX)
+================================ */
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 if (process.env.NODE_ENV !== "production") {
